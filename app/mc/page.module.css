@@ -1,0 +1,250 @@
+.container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 20px;
+}
+
+.card {
+  background: white;
+  border-radius: 0;
+  padding: 20px;
+  width: 100%;
+  box-shadow: none;
+  margin: 0;
+}
+
+.card h2 {
+  margin: 0 0 10px 0;
+  color: #333;
+  font-size: 24px;
+}
+
+.card p {
+  color: #666;
+  margin: 0 0 20px 0;
+  font-size: 14px;
+}
+
+.roomInfo {
+  background: #f0f4ff;
+  padding: 12px;
+  border-radius: 8px;
+  border-left: 4px solid #667eea;
+  margin: 15px 0 20px 0;
+}
+
+.section {
+  background: #f8f9fa;
+  padding: 20px;
+  border-radius: 12px;
+  margin: 20px 0;
+}
+
+.section h3 {
+  margin: 0 0 15px 0;
+  color: #333;
+  font-size: 18px;
+}
+
+.noPlayers {
+  color: #999;
+  text-align: center;
+  padding: 20px;
+  background: white;
+  border-radius: 8px;
+}
+
+.playerList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.playerItem {
+  background: white;
+  padding: 12px 15px;
+  border-radius: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-left: 4px solid #667eea;
+}
+
+.playerItem span:first-child {
+  font-weight: 600;
+  color: #333;
+}
+
+.submitted {
+  color: #28a745;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.waiting {
+  color: #ffc107;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.createButton,
+.startButton,
+.skipButton,
+.endButton,
+.nextRoundButton {
+  width: 100%;
+  padding: 15px;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+  margin: 10px 0;
+}
+
+.createButton,
+.startButton,
+.endButton,
+.nextRoundButton {
+  background: #667eea;
+  color: white;
+}
+
+.createButton:hover,
+.startButton:hover,
+.endButton:hover,
+.nextRoundButton:hover {
+  background: #5568d3;
+  transform: translateY(-2px);
+}
+
+.startButton:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.skipButton {
+  background: #ffc107;
+  color: #333;
+  flex: 1;
+}
+
+.skipButton:hover {
+  background: #ffb300;
+  transform: translateY(-2px);
+}
+
+.timerSection {
+  background: #fff3cd;
+  border: 2px solid #ffc107;
+  padding: 20px;
+  border-radius: 12px;
+  margin: 20px 0;
+}
+
+.timer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 15px;
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+}
+
+.timerValue {
+  font-size: 32px;
+  color: #ff6b6b;
+}
+
+.timerSection > p {
+  text-align: center;
+  margin: 10px 0 15px 0;
+  color: #333;
+  font-weight: 600;
+}
+
+.buttonGroup {
+  display: flex;
+  gap: 10px;
+  margin-top: 15px;
+}
+
+.buttonGroup button {
+  flex: 1;
+}
+
+.resultsSection {
+  background: #d4edda;
+  border: 2px solid #28a745;
+  padding: 20px;
+  border-radius: 12px;
+  margin: 20px 0;
+}
+
+.resultsSection h3 {
+  margin: 0 0 20px 0;
+  color: #155724;
+}
+
+.resultsGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.resultCard {
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  text-align: center;
+  border-top: 4px solid #28a745;
+}
+
+.resultCard span {
+  display: block;
+  color: #666;
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+.resultCard strong {
+  display: block;
+  font-size: 24px;
+  color: #155724;
+}
+
+.error {
+  color: #dc3545;
+  font-size: 14px;
+  margin: 10px 0;
+  padding: 10px;
+  background: #f8d7da;
+  border-radius: 4px;
+}
+
+.backButton {
+  width: 100%;
+  padding: 12px;
+  background: #6c757d;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+  margin-top: 20px;
+}
+
+.backButton:hover {
+  background: #5a6268;
+  transform: translateY(-2px);
+}

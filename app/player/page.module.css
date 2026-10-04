@@ -1,0 +1,189 @@
+.container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 20px;
+}
+
+.card {
+  background: white;
+  border-radius: 16px;
+  padding: 30px;
+  max-width: 600px;
+  width: 100%;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.card h2 {
+  margin: 0 0 10px 0;
+  color: #333;
+}
+
+.subtitle {
+  color: #666;
+  margin: 0 0 20px 0;
+  font-size: 14px;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.form label {
+  font-weight: 600;
+  color: #333;
+  font-size: 14px;
+}
+
+.input {
+  padding: 12px;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 16px;
+  transition: border-color 0.3s;
+}
+
+.input:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.inputGroup {
+  display: flex;
+  gap: 10px;
+}
+
+.inputGroup .input {
+  flex: 1;
+}
+
+.submitButton,
+.guessButton {
+  padding: 12px 24px;
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.submitButton:hover,
+.guessButton:hover {
+  background: #5568d3;
+  transform: translateY(-2px);
+}
+
+.guessButton {
+  min-width: 100px;
+}
+
+.waiting {
+  background: #f0f4ff;
+  border-left: 4px solid #667eea;
+  padding: 20px;
+  border-radius: 8px;
+  margin: 20px 0;
+  text-align: center;
+  color: #667eea;
+  font-weight: 600;
+}
+
+.gameSection {
+  margin: 20px 0;
+}
+
+.timer {
+  background: #fff3cd;
+  border: 2px solid #ffc107;
+  padding: 15px;
+  border-radius: 8px;
+  text-align: center;
+  margin-bottom: 20px;
+  font-weight: 600;
+}
+
+.timerValue {
+  font-size: 24px;
+  color: #ff6b6b;
+  margin-left: 10px;
+}
+
+.submitted {
+  background: #d4edda;
+  border: 2px solid #28a745;
+  padding: 15px;
+  border-radius: 8px;
+  color: #155724;
+  font-weight: 600;
+  text-align: center;
+}
+
+.error {
+  color: #dc3545;
+  font-size: 14px;
+  margin: 10px 0 0 0;
+}
+
+.resultsSection {
+  background: #f8f9fa;
+  padding: 20px;
+  border-radius: 12px;
+  margin: 20px 0;
+}
+
+.resultsSection h3 {
+  margin: 0 0 15px 0;
+  color: #333;
+}
+
+.resultsGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 15px;
+}
+
+.resultItem {
+  background: white;
+  padding: 15px;
+  border-radius: 8px;
+  border-left: 4px solid #667eea;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.resultItem span {
+  color: #666;
+  font-size: 14px;
+}
+
+.resultItem strong {
+  font-size: 18px;
+  color: #333;
+}
+
+.exitButton {
+  width: 100%;
+  padding: 12px;
+  background: #6c757d;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+  margin-top: 20px;
+}
+
+.exitButton:hover {
+  background: #5a6268;
+  transform: translateY(-2px);
+}

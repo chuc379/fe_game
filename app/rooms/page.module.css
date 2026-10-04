@@ -1,0 +1,125 @@
+.container {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.card {
+  background: white;
+  border-radius: 16px;
+  padding: 30px;
+  max-width: 600px;
+  width: 100%;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.card h1 {
+  margin: 0 0 30px 0;
+  text-align: center;
+  color: #333;
+}
+
+.roomsList {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  margin-bottom: 30px;
+}
+
+.roomItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+
+.roomItem:hover {
+  border-color: #667eea;
+  background: #f9f9f9;
+}
+
+.roomInfo h3 {
+  margin: 0;
+  font-size: 18px;
+  color: #333;
+}
+
+.roomInfo p {
+  margin: 5px 0 0 0;
+  color: #666;
+  font-size: 14px;
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+}
+
+.btnJoin,
+.btnMC {
+  padding: 8px 12px;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.btnJoin {
+  background: #667eea;
+  color: white;
+}
+
+.btnJoin:hover {
+  background: #5568d3;
+}
+
+.btnMC {
+  background: #764ba2;
+  color: white;
+}
+
+.btnMC:hover {
+  background: #653a8a;
+}
+
+.createSection {
+  border-top: 2px solid #e0e0e0;
+  padding-top: 20px;
+  margin-top: 20px;
+}
+
+.createSection h3 {
+  margin: 0 0 15px 0;
+  color: #333;
+}
+
+.buttonGroup {
+  display: flex;
+  gap: 10px;
+}
+
+.createBtn {
+  flex: 1;
+  padding: 12px;
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.createBtn:hover {
+  background: #5568d3;
+  transform: translateY(-2px);
+}
