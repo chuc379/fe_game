@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { initSocket, getSocket, closeSocket } from '@/lib/socket';
+import { getToken, setToken, clearToken, login } from '@/lib/auth';
 import PlayerList from '@/components/mc/PlayerList';
 import RoundTimer from '@/components/mc/RoundTimer';
 import ResultsDisplay from '@/components/mc/ResultsDisplay';
@@ -26,6 +27,12 @@ export default function MCPage() {
   const [error, setError] = useState('');
   const [roundNumber, setRoundNumber] = useState(0);
   const [roundHistory, setRoundHistory] = useState<any[]>([]);
+
+  const [authChecked, setAuthChecked] = useState(false);
+  const [token, setTokenState] = useState<string | null>(null);
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [loggingIn, setLoggingIn] = useState(false);
 
   const latest = useRef({ players, playerScores, roundNumber, roomId, roundActive });
   const calculatingRound = useRef<number | null>(null);
@@ -62,10 +69,28 @@ export default function MCPage() {
   };
 
   useEffect(() => {
-    const socket = initSocket();
+    const stored = getToken();
+    if (stored) setTokenState(stored);
+    setAuthChecked(true);
+  }, []);
+
+  useEffect(() => {
+    if (!token) return;
+
+    const socket = initSocket(token);
 
     socket.on('connect', () => {
       console.log('MC connected to server');
+    });
+
+    socket.on('connect_error', (err: any) => {
+      if (err?.message === 'invalid_token') {
+        clearToken();
+        setTokenState(null);
+        setError('Session expired. Please sign in again.');
+      } else {
+        setError('Failed to connect to the server.');
+      }
     });
 
     socket.on('join_room_response', (data: any) => {
@@ -208,7 +233,7 @@ export default function MCPage() {
       clearResultTimer();
       closeSocket();
     };
-  }, []);
+  }, [token]);
 
   // Timer countdown
   useEffect(() => {
@@ -228,6 +253,23 @@ export default function MCPage() {
     }
   }, [timeLeft, roundActive]);
 
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setLoggingIn(true);
+    const { token: newToken, error: loginError } = await login(username, password);
+    setLoggingIn(false);
+
+    if (loginError || !newToken) {
+      setError(loginError || 'Login failed');
+      return;
+    }
+
+    setToken(newToken);
+    setTokenState(newToken);
+    setPassword('');
+  };
+
   const handleCreateRoom = (e: React.FormEvent) => {
     e.preventDefault();
     const newRoomId = Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -236,7 +278,6 @@ export default function MCPage() {
     socket.emit('join_room', {
       room_id: newRoomId,
       player_name: 'MC',
-      is_mc: true,
     });
 
     setPlayers([]);
@@ -290,6 +331,43 @@ export default function MCPage() {
 
   const submittedCount = players.filter((p) => p.submitted).length;
   const allSubmitted = submittedCount === players.length && players.length > 0;
+
+  if (!authChecked) {
+    return null;
+  }
+
+  if (!token) {
+    return (
+      <div className={styles.container}>
+        <div className={styles.card}>
+          <h2>🎛️ MC Login</h2>
+          <p>Sign in to manage game rooms</p>
+          <form onSubmit={handleLogin}>
+            <input
+              className={styles.input}
+              type="text"
+              placeholder="Username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              autoComplete="username"
+            />
+            <input
+              className={styles.input}
+              type="password"
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
+            />
+            <button type="submit" className={styles.createButton} disabled={loggingIn}>
+              {loggingIn ? 'Signing in...' : 'Sign In'}
+            </button>
+          </form>
+          {error && <p className={styles.error}>{error}</p>}
+        </div>
+      </div>
+    );
+  }
 
   if (!roomCreated) {
     return (

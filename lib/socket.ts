@@ -1,17 +1,27 @@
 import io, { Socket } from 'socket.io-client';
 
-const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || 'https://game-theory-gateway.onrender.com';
+export const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || 'https://game-theory-gateway.onrender.com';
 
 let socket: Socket | null = null;
 
-export const initSocket = (): Socket => {
-  if (socket) return socket;
+export const initSocket = (token?: string): Socket => {
+  const auth = token ? { token } : {};
+
+  if (socket) {
+    const currentToken = (socket.auth as { token?: string } | undefined)?.token;
+    if (currentToken !== (token ?? undefined)) {
+      socket.auth = auth;
+      socket.disconnect().connect();
+    }
+    return socket;
+  }
 
   socket = io(SOCKET_URL, {
     reconnection: true,
     reconnectionDelay: 1000,
     reconnectionDelayMax: 5000,
     reconnectionAttempts: 5,
+    auth,
   });
 
   socket.on('connect', () => {
