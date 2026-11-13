@@ -6,7 +6,7 @@ import { initSocket, getSocket, closeSocket } from '@/lib/socket';
 import ExecutionOverlay from '@/components/mc/ExecutionOverlay';
 import styles from './page.module.css';
 
-const DEFAULT_STARTING_LIVES = 5;
+const DEFAULT_STARTING_LIVES = 10;
 const DEFAULT_ROUND_DURATION = 30;
 
 const normalizeRoomId = (value: string) => value.trim().toUpperCase();

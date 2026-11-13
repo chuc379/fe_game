@@ -6,12 +6,14 @@ interface ResultsDisplayProps {
   result: any;
   onNextRound: () => void;
   disabled?: boolean;
+  startingLives?: number;
 }
 
 export default function ResultsDisplay({
   result,
   onNextRound,
   disabled = false,
+  startingLives = 10,
 }: ResultsDisplayProps) {
   const scoreboard: any[] = Array.isArray(result?.scoreboard)
     ? result.scoreboard
@@ -54,7 +56,7 @@ export default function ResultsDisplay({
 
       {changed.length > 0 && (
         <div className={styles.changeList}>
-          <h4>Điểm thay đổi</h4>
+          <h4>Mạng thay đổi</h4>
           {changed.map((player) => (
             <div key={player.player_id} className={styles.changeRow}>
               <span>
@@ -63,7 +65,7 @@ export default function ResultsDisplay({
               </span>
               <span className={styles.deltaDown}>
                 {Number(player.last_delta) > 0 ? '+' : ''}
-                {player.last_delta} → {player.points} ❤️
+                {player.last_delta} → {player.points}/{startingLives} ❤️
               </span>
             </div>
           ))}

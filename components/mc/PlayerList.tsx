@@ -13,7 +13,7 @@ const hearts = (points: number, startingLives: number) => {
   return '❤️'.repeat(alive) + '🖤'.repeat(lost);
 };
 
-export default function PlayerList({ players, startingLives = 5 }: PlayerListProps) {
+export default function PlayerList({ players, startingLives = 10 }: PlayerListProps) {
   const aliveCount = players.filter((player) => !player.eliminated).length;
 
   return (

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { initSocket, getSocket, closeSocket } from '@/lib/socket';
 import { getToken, setToken, clearToken, login } from '@/lib/auth';
@@ -15,7 +15,7 @@ import styles from './page.module.css';
 
 const ROUND_DURATION = 30;
 const RESULT_TIMEOUT_MS = 15000;
-const DEFAULT_LIVES = 5;
+const DEFAULT_LIVES = 10;
 
 const normalizePlayer = (data: any) => {
   const player = data?.player ?? data ?? {};
@@ -48,7 +48,7 @@ export default function MCPage() {
   const [creatingRoom, setCreatingRoom] = useState(false);
   const [players, setPlayers] = useState<any[]>([]);
   const [playerScores, setPlayerScores] = useState<any[]>([]);
-  const [startingLives, setStartingLives] = useState(5);
+  const [startingLives, setStartingLives] = useState(DEFAULT_LIVES);
   const [roundActive, setRoundActive] = useState(false);
   const [startingRound, setStartingRound] = useState(false);
   const [timeLeft, setTimeLeft] = useState(ROUND_DURATION);
@@ -100,7 +100,9 @@ export default function MCPage() {
       if (!state) return;
 
       if (state.room_id) setRoomId(state.room_id);
-      if (state.started_lives) setStartingLives(Number(state.started_lives) || 5);
+      if (state.started_lives) {
+        setStartingLives(Number(state.started_lives) || DEFAULT_LIVES);
+      }
       if (state.current_round) setRoundNumber(Number(state.current_round) || 0);
 
       setPlayers(
@@ -317,6 +319,7 @@ export default function MCPage() {
     setRoundNumber(0);
     setResult(null);
     setExecutionNames([]);
+    setStartingLives(DEFAULT_LIVES);
     setError('');
     setCreatingRoom(true);
 
@@ -369,6 +372,10 @@ export default function MCPage() {
     closeSocket();
     router.push('/');
   };
+
+  const dismissExecution = useCallback(() => {
+    setExecutionNames((names) => names.slice(1));
+  }, []);
 
   const alivePlayers = players.filter((player) => !player.eliminated);
   const submittedCount = alivePlayers.filter((p) => p.submitted).length;
@@ -489,6 +496,7 @@ export default function MCPage() {
               result={result}
               onNextRound={handleStartRound}
               disabled={alivePlayers.length === 0 || startingRound || gameOver}
+              startingLives={startingLives}
             />
           )}
 
@@ -502,7 +510,10 @@ export default function MCPage() {
       <div style={{ flex: '0 0 50%', overflowY: 'auto', padding: '20px', background: '#f9f9f9' }}>
         {playerScores.length > 0 ? (
           <>
-            <RankingTable players={playerScores} />
+            <RankingTable
+              players={playerScores}
+              startingLives={startingLives}
+            />
             <ScoreChart players={playerScores} />
             <RoundHistoryChart roundHistory={roundHistory} />
           </>
@@ -519,8 +530,9 @@ export default function MCPage() {
 
       {executionNames.length > 0 && (
         <ExecutionOverlay
-          names={executionNames}
-          onDismiss={() => setExecutionNames([])}
+          names={executionNames.slice(0, 1)}
+          autoHideMs={3000}
+          onDismiss={dismissExecution}
         />
       )}
     </div>

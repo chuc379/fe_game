@@ -343,6 +343,106 @@
   margin: 10px 0;
 }
 
+.rankingCard {
+  margin-top: 20px;
+  padding: 14px;
+  background: linear-gradient(
+    135deg,
+    rgba(102, 126, 234, 0.1) 0%,
+    rgba(118, 75, 162, 0.1) 100%
+  );
+  border: 2px solid rgba(102, 126, 234, 0.3);
+  border-radius: 12px;
+}
+
+.rankingTitle {
+  margin: 0 0 12px;
+  color: #333;
+  font-size: 18px;
+}
+
+.rankingTableViewport {
+  max-height: min(60vh, 600px);
+  overflow: auto;
+  scrollbar-gutter: stable;
+  border-radius: 8px;
+}
+
+.rankingTable {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.rankingTable th,
+.rankingTable td {
+  padding: 7px 6px;
+  border-bottom: 1px solid rgba(102, 126, 234, 0.2);
+}
+
+.rankingTable th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #f0f1fc;
+  color: #667eea;
+  text-align: left;
+  font-weight: 700;
+}
+
+.rankingRankColumn {
+  width: 52px;
+}
+
+.rankingLivesColumn {
+  width: 84px;
+}
+
+.rankingDeltaColumn {
+  width: 54px;
+}
+
+.rankingRank {
+  color: #333;
+  font-weight: 700;
+}
+
+.rankingPlayer {
+  overflow: hidden;
+  color: #333;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rankingPlayer span {
+  display: inline-block;
+  max-width: calc(100% - 34px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+  white-space: nowrap;
+}
+
+.rankingEliminated {
+  color: #b02a37;
+}
+
+.rankingLives {
+  text-align: center;
+  white-space: nowrap;
+}
+
+.rankingDelta {
+  color: #28a745;
+  text-align: right;
+  font-weight: 700;
+}
+
+.rankingDeltaDown {
+  color: #dc3545;
+}
+
 @keyframes executionFlash {
   0%,
   100% {

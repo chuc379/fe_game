@@ -1,5 +1,7 @@
 'use client';
 
+import styles from '@/app/mc/page.module.css';
+
 interface PlayerScore {
   player_id: string;
   player_name: string;
@@ -7,52 +9,63 @@ interface PlayerScore {
   total_points?: number;
   eliminated?: boolean;
   last_delta?: number;
-  rank: number;
+  rank?: number;
 }
 
 interface RankingTableProps {
   players: PlayerScore[];
+  startingLives: number;
 }
 
 const pointsOf = (player: PlayerScore) =>
   Number(player.points ?? player.total_points ?? 0);
 
-export default function RankingTable({ players }: RankingTableProps) {
+export default function RankingTable({
+  players,
+  startingLives,
+}: RankingTableProps) {
   const sorted = [...players].sort((a, b) => {
     if (Boolean(a.eliminated) !== Boolean(b.eliminated)) {
       return a.eliminated ? 1 : -1;
     }
-    return pointsOf(b) - pointsOf(a);
+    return (
+      pointsOf(b) - pointsOf(a) ||
+      a.player_name.localeCompare(b.player_name)
+    );
   });
 
   return (
-    <div style={{
-      marginTop: '20px',
-      padding: '20px',
-      background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%)',
-      borderRadius: '12px',
-      border: '2px solid rgba(102, 126, 234, 0.3)',
-    }}>
-      <h3 style={{ margin: '0 0 15px 0', fontSize: '20px', color: '#333' }}>
+    <div className={styles.rankingCard}>
+      <h3 className={styles.rankingTitle}>
         🏆 Survival Ranking
       </h3>
-      <div style={{ overflowX: 'auto' }}>
-        <table style={{
-          width: '100%',
-          borderCollapse: 'collapse',
-          fontSize: '14px',
-        }}>
+      <div
+        className={styles.rankingTableViewport}
+        role="region"
+        aria-label="Bảng xếp hạng người chơi"
+        tabIndex={0}
+      >
+        <table className={styles.rankingTable}>
+          <colgroup>
+            <col className={styles.rankingRankColumn} />
+            <col />
+            <col className={styles.rankingLivesColumn} />
+            <col className={styles.rankingDeltaColumn} />
+          </colgroup>
           <thead>
-            <tr style={{ borderBottom: '2px solid #667eea' }}>
-              <th style={{ padding: '10px', textAlign: 'left', color: '#667eea', fontWeight: 'bold' }}>Rank</th>
-              <th style={{ padding: '10px', textAlign: 'left', color: '#667eea', fontWeight: 'bold' }}>Player</th>
-              <th style={{ padding: '10px', textAlign: 'center', color: '#667eea', fontWeight: 'bold' }}>Lives</th>
-              <th style={{ padding: '10px', textAlign: 'right', color: '#667eea', fontWeight: 'bold' }}>Round Δ</th>
+            <tr>
+              <th scope="col">Rank</th>
+              <th scope="col">Player</th>
+              <th scope="col">Lives</th>
+              <th scope="col">Δ</th>
             </tr>
           </thead>
           <tbody>
             {sorted.map((player, idx) => {
-              const points = pointsOf(player);
+              const points = Math.max(
+                0,
+                Math.min(startingLives, pointsOf(player))
+              );
               const delta = Number(player.last_delta ?? 0);
               return (
                 <tr key={player.player_id} style={{
@@ -64,7 +77,7 @@ export default function RankingTable({ players }: RankingTableProps) {
                       : 'transparent',
                   transition: 'all 0.3s ease',
                 }}>
-                  <td style={{ padding: '10px', fontWeight: 'bold', color: idx === 0 && !player.eliminated ? '#FFD700' : '#333' }}>
+                  <td className={styles.rankingRank}>
                     {player.eliminated
                       ? '💀'
                       : idx === 0
@@ -75,20 +88,19 @@ export default function RankingTable({ players }: RankingTableProps) {
                             ? '🥉'
                             : `#${idx + 1}`}
                   </td>
-                  <td style={{ padding: '10px', color: player.eliminated ? '#b02a37' : '#333' }}>
-                    {player.player_name}
+                  <td
+                    className={`${styles.rankingPlayer} ${player.eliminated ? styles.rankingEliminated : ''}`}
+                    title={player.player_name}
+                  >
+                    <span>{player.player_name}</span>
                     {player.eliminated ? ' (out)' : ''}
                   </td>
-                  <td style={{ padding: '10px', textAlign: 'center', fontSize: '16px' }}>
-                    {'❤️'.repeat(Math.max(0, points))}
-                    <span style={{ color: '#999' }}>{'🖤'.repeat(Math.max(0, 5 - points))}</span>
+                  <td className={styles.rankingLives}>
+                    {points}/{startingLives} ❤️
                   </td>
-                  <td style={{
-                    padding: '10px',
-                    textAlign: 'right',
-                    fontWeight: 'bold',
-                    color: delta < 0 ? '#dc3545' : '#28a745',
-                  }}>
+                  <td
+                    className={`${styles.rankingDelta} ${delta < 0 ? styles.rankingDeltaDown : ''}`}
+                  >
                     {delta < 0 ? delta : delta > 0 ? `+${delta}` : '—'}
                   </td>
                 </tr>
