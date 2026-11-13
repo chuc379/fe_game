@@ -115,6 +115,10 @@
   margin-left: 10px;
 }
 
+.timerDone {
+  color: #b06a00;
+}
+
 .submitted {
   background: #d4edda;
   border: 2px solid #28a745;
@@ -167,6 +171,180 @@
 .resultItem strong {
   font-size: 18px;
   color: #333;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.header h2 {
+  margin: 0 0 6px 0;
+}
+
+.header .subtitle {
+  margin: 0;
+}
+
+.lives {
+  display: inline-block;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: #fff0f3;
+  border: 2px solid #ffb3c1;
+  font-size: 16px;
+  letter-spacing: 1px;
+  white-space: nowrap;
+  animation: livesPulse 1.6s ease-in-out infinite;
+}
+
+.livesEmpty {
+  background: #2b2b2b;
+  border-color: #111;
+  color: #ff6b6b;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  animation: none;
+}
+
+.eliminatedBanner {
+  margin: 16px 0;
+  padding: 16px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #2d0000, #4a0000);
+  border: 2px solid #ff2d2d;
+  color: #ffd7d7;
+  text-align: center;
+  font-weight: 700;
+  line-height: 1.5;
+  animation: bannerIn 0.5s ease-out;
+}
+
+.spectator {
+  padding: 18px;
+  border-radius: 10px;
+  background: #f4f4f4;
+  border: 2px dashed #999;
+  color: #555;
+  text-align: center;
+  font-weight: 600;
+}
+
+.submittedHint {
+  display: block;
+  margin-top: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #2f6b3d;
+}
+
+.deltaDown,
+.deltaUp,
+.deltaNeutral {
+  margin-top: 15px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.deltaDown {
+  background: #fde8e8;
+  border: 2px solid #f5b5b5;
+  color: #b00020;
+  animation: bannerIn 0.4s ease-out;
+}
+
+.deltaUp {
+  background: #e7f7ec;
+  border: 2px solid #9fd9b0;
+  color: #1e6b35;
+}
+
+.deltaNeutral {
+  background: #eef2ff;
+  border: 2px solid #c3cdf5;
+  color: #3b4aa0;
+}
+
+.ruleNotice {
+  margin-top: 12px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  background: #fff8e1;
+  border-left: 4px solid #ffc107;
+  color: #7a5a00;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.executionNotice {
+  margin-top: 12px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  background: #2d0000;
+  color: #ffb3b3;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.gameOver,
+.victory {
+  margin: 16px 0;
+  padding: 18px;
+  border-radius: 10px;
+  text-align: center;
+  font-weight: 800;
+  font-size: 17px;
+  line-height: 1.5;
+}
+
+.gameOver {
+  background: #2b2b2b;
+  color: #ffd7d7;
+  border: 2px solid #555;
+}
+
+.victory {
+  background: linear-gradient(135deg, #fff6cc, #ffe28a);
+  border: 2px solid #ffc107;
+  color: #7a5a00;
+  animation: livesPulse 1.8s ease-in-out infinite;
+}
+
+@keyframes livesPulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.04);
+  }
+}
+
+@keyframes bannerIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lives,
+  .victory,
+  .eliminatedBanner,
+  .deltaDown {
+    animation: none;
+  }
 }
 
 .exitButton {

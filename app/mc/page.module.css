@@ -78,6 +78,36 @@
   color: #333;
 }
 
+.playerInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.lives {
+  font-size: 13px;
+  letter-spacing: 1px;
+  color: #ff4d6d;
+}
+
+.playerEliminated {
+  border-left-color: #dc3545;
+  background: #fff5f5;
+  opacity: 0.85;
+}
+
+.playerEliminated span:first-child {
+  color: #b02a37;
+  text-decoration: line-through;
+}
+
+.eliminated {
+  color: #dc3545;
+  font-size: 14px;
+  font-weight: 700;
+}
+
 .submitted {
   color: #28a745;
   font-size: 14px;
@@ -234,6 +264,93 @@
   display: block;
   font-size: 24px;
   color: #155724;
+}
+
+.ruleNotice {
+  background: #fff8e1;
+  border-left: 4px solid #ffb300;
+  padding: 12px 14px;
+  border-radius: 6px;
+  color: #6d4c00;
+  font-size: 14px;
+  margin-bottom: 15px;
+}
+
+.changeList {
+  background: white;
+  border-radius: 8px;
+  padding: 12px 15px;
+  margin-bottom: 15px;
+}
+
+.changeList h4 {
+  margin: 0 0 10px 0;
+  color: #333;
+  font-size: 15px;
+}
+
+.changeRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px dashed rgba(0, 0, 0, 0.08);
+  font-size: 14px;
+  color: #333;
+}
+
+.changeRow:last-child {
+  border-bottom: none;
+}
+
+.deltaDown {
+  color: #dc3545;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.executionNotice {
+  background: #2b0a0a;
+  color: #ffb3b3;
+  border: 1px solid #ff2d2d;
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-weight: 700;
+  margin-bottom: 15px;
+  animation: executionFlash 1.1s ease-in-out 2;
+}
+
+.gameOverNotice {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+  border-radius: 8px;
+  padding: 16px;
+  font-size: 17px;
+  font-weight: 800;
+  text-align: center;
+  margin-bottom: 15px;
+}
+
+.survivalHint {
+  background: #ffe9ec;
+  border: 1px dashed #ff6b81;
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: #a4001d;
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 10px 0;
+}
+
+@keyframes executionFlash {
+  0%,
+  100% {
+    box-shadow: 0 0 0 rgba(255, 45, 45, 0);
+  }
+  50% {
+    box-shadow: 0 0 24px rgba(255, 45, 45, 0.65);
+  }
 }
 
 .error {

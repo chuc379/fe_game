@@ -10,23 +10,53 @@ import ResultsDisplay from '@/components/mc/ResultsDisplay';
 import RankingTable from '@/components/mc/RankingTable';
 import ScoreChart from '@/components/mc/ScoreChart';
 import RoundHistoryChart from '@/components/mc/RoundHistoryChart';
+import ExecutionOverlay from '@/components/mc/ExecutionOverlay';
 import styles from './page.module.css';
 
 const ROUND_DURATION = 30;
 const RESULT_TIMEOUT_MS = 15000;
+const DEFAULT_LIVES = 5;
+
+const normalizePlayer = (data: any) => {
+  const player = data?.player ?? data ?? {};
+  const playerId = player.player_id ?? player.id ?? player.playerId ?? null;
+  const playerName = player.player_name ?? player.name ?? 'Unknown Player';
+
+  return {
+    ...player,
+    player_id: playerId,
+    player_name: playerName,
+    points: Number(player.points ?? player.total_points ?? DEFAULT_LIVES),
+    eliminated: Boolean(player.eliminated),
+    submitted: Boolean(player.submitted),
+  };
+};
+
+const normalizeScores = (scores: any[]) =>
+  (Array.isArray(scores) ? scores : []).map((score) => ({
+    ...score,
+    player_name: score.player_name ?? score.name ?? 'Unknown Player',
+    points: Number(score.points ?? score.total_points ?? 0),
+    eliminated: Boolean(score.eliminated),
+    last_delta: Number(score.last_delta ?? 0),
+  }));
 
 export default function MCPage() {
   const router = useRouter();
   const [roomId, setRoomId] = useState('');
   const [roomCreated, setRoomCreated] = useState(false);
+  const [creatingRoom, setCreatingRoom] = useState(false);
   const [players, setPlayers] = useState<any[]>([]);
   const [playerScores, setPlayerScores] = useState<any[]>([]);
+  const [startingLives, setStartingLives] = useState(5);
   const [roundActive, setRoundActive] = useState(false);
+  const [startingRound, setStartingRound] = useState(false);
   const [timeLeft, setTimeLeft] = useState(ROUND_DURATION);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState('');
   const [roundNumber, setRoundNumber] = useState(0);
   const [roundHistory, setRoundHistory] = useState<any[]>([]);
+  const [executionNames, setExecutionNames] = useState<string[]>([]);
 
   const [authChecked, setAuthChecked] = useState(false);
   const [token, setTokenState] = useState<string | null>(null);
@@ -34,12 +64,12 @@ export default function MCPage() {
   const [password, setPassword] = useState('');
   const [loggingIn, setLoggingIn] = useState(false);
 
-  const latest = useRef({ players, playerScores, roundNumber, roomId, roundActive });
+  const latest = useRef({ players, playerScores, roundNumber, roomId, roundActive, roomCreated });
   const calculatingRound = useRef<number | null>(null);
   const resultTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    latest.current = { players, playerScores, roundNumber, roomId, roundActive };
+    latest.current = { players, playerScores, roundNumber, roomId, roundActive, roomCreated };
   });
 
   useEffect(() => {
@@ -55,19 +85,6 @@ export default function MCPage() {
     }
   };
 
-  const normalizePlayer = (data: any) => {
-    const player = data?.player ?? data ?? {};
-    const playerId = player.player_id ?? player.id ?? player.playerId ?? null;
-    const playerName = player.player_name ?? player.name ?? 'Unknown Player';
-
-    return {
-      ...player,
-      player_id: playerId,
-      player_name: playerName,
-      submitted: Boolean(player.submitted),
-    };
-  };
-
   useEffect(() => {
     const stored = getToken();
     if (stored) setTokenState(stored);
@@ -79,11 +96,38 @@ export default function MCPage() {
 
     const socket = initSocket(token);
 
+    const applyRoomState = (state: any) => {
+      if (!state) return;
+
+      if (state.room_id) setRoomId(state.room_id);
+      if (state.started_lives) setStartingLives(Number(state.started_lives) || 5);
+      if (state.current_round) setRoundNumber(Number(state.current_round) || 0);
+
+      setPlayers(
+        (state.players || []).map((player: any) => ({
+          ...normalizePlayer(player),
+          // The server knows which players already submitted this round.
+          submitted: Boolean(player.submitted),
+        }))
+      );
+
+      if (Array.isArray(state.scoreboard)) {
+        setPlayerScores(normalizeScores(state.scoreboard));
+      }
+    };
+
     socket.on('connect', () => {
       console.log('MC connected to server');
+      const currentRoom = latest.current.roomId;
+      // Re-enter the room after a reconnect: Socket.IO rooms are bound to a
+      // socket id, so a new socket must rejoin to keep receiving broadcasts.
+      if (latest.current.roomCreated && currentRoom) {
+        socket.emit('join_room', { room_id: currentRoom, player_name: 'MC' });
+      }
     });
 
     socket.on('connect_error', (err: any) => {
+      setCreatingRoom(false);
       if (err?.message === 'invalid_token') {
         clearToken();
         setTokenState(null);
@@ -94,21 +138,35 @@ export default function MCPage() {
     });
 
     socket.on('join_room_response', (data: any) => {
-      if (data.success) {
+      setCreatingRoom(false);
+      if (data?.success) {
         setRoomCreated(true);
         setError('');
+        if (data.room_id) setRoomId(data.room_id);
+        if (data.room_state) applyRoomState(data.room_state);
       } else {
-        setError(data.error || 'Failed to create room');
+        setError(data?.error || 'Failed to create room');
       }
     });
 
+    socket.on('room_state', (state: any) => {
+      applyRoomState(state);
+    });
+
     socket.on('start_round_response', (data: any) => {
+      setStartingRound(false);
       if (data?.success) {
         setRoundNumber(Number(data.round_id) || 0);
+        setRoundActive(true);
+        setTimeLeft(Number(data.duration) || ROUND_DURATION);
+        setResult(null);
+        setExecutionNames([]);
         calculatingRound.current = null;
         clearResultTimer();
         setError('');
+        setPlayers((prev) => prev.map((p) => ({ ...p, submitted: false })));
       } else {
+        setRoundActive(false);
         setError(data?.error || 'Failed to start round');
       }
     });
@@ -133,23 +191,11 @@ export default function MCPage() {
     socket.on('player_joined', (data: any) => {
       const playerData = normalizePlayer(data);
       setPlayers((prev) => {
-        const hasPlayer = prev.some((p) => p.player_id && playerData.player_id && p.player_id === playerData.player_id);
-        if (hasPlayer) {
-          return prev;
-        }
+        const hasPlayer = prev.some(
+          (p) => p.player_id && playerData.player_id && p.player_id === playerData.player_id
+        );
+        if (hasPlayer) return prev;
         return [...prev, { ...playerData, submitted: false }];
-      });
-
-      // Initialize score for new player
-      setPlayerScores((prev) => {
-        const hasScore = prev.some((p) => p.player_id === playerData.player_id);
-        if (hasScore) return prev;
-        
-        return [...prev, {
-          player_id: playerData.player_id,
-          player_name: playerData.player_name,
-          score: 0,
-        }];
       });
     });
 
@@ -166,60 +212,48 @@ export default function MCPage() {
 
     socket.on('round_result_ready', (data: any) => {
       setRoundActive(false);
+      setStartingRound(false);
       setTimeLeft(0);
-      setResult(data?.result ?? null);
+      const resultData = data?.result ?? null;
+      setResult(resultData);
       setError('');
       calculatingRound.current = null;
       clearResultTimer();
 
-      const resultData = data?.result;
       if (!resultData) return;
 
-      const { players: currentPlayers, roundNumber: currentRound } = latest.current;
+      if (Array.isArray(resultData.scoreboard)) {
+        setPlayerScores(normalizeScores(resultData.scoreboard));
+      }
 
-      // Update scores based on result
-      setPlayerScores((prevScores) => {
-        const updated: Record<string, any> = {};
+      // Newly executed players get the full-screen animation.
+      const executed = Array.isArray(resultData.eliminated)
+        ? resultData.eliminated
+        : [];
+      if (executed.length > 0) {
+        setExecutionNames(
+          executed.map((player: any) => player.player_name ?? player.name ?? 'Unknown')
+        );
+      }
 
-        prevScores.forEach((score) => {
-          updated[score.player_id] = { ...score };
-        });
-
-        currentPlayers.forEach((player) => {
-          if (!updated[player.player_id]) {
-            updated[player.player_id] = {
-              player_id: player.player_id,
-              player_name: player.player_name,
-              score: 0,
-            };
-          }
-        });
-
-        // Award winner +10, all participants +1
-        Object.keys(updated).forEach((playerId) => {
-          if (resultData.winner?.player_id === playerId) {
-            updated[playerId].score += 10;
-          } else if (currentPlayers.some((p) => p.player_id === playerId)) {
-            updated[playerId].score += 1;
-          }
-        });
-
-        return Object.values(updated);
+      const round = Number(data?.round_id) || latest.current.roundNumber;
+      setRoundHistory((prev) => {
+        if (prev.some((entry) => entry.round === round)) return prev;
+        return [
+          ...prev,
+          {
+            round,
+            average: Math.round((Number(resultData.average) || 0) * 100) / 100,
+            target: Math.round((Number(resultData.target) || 0) * 100) / 100,
+          },
+        ];
       });
-
-      // Add to round history
-      setRoundHistory((prev) => [
-        ...prev,
-        {
-          round: Number(data?.round_id) || currentRound,
-          average: Math.round(resultData.average * 100) / 100,
-          target: Math.round(resultData.target * 100) / 100,
-        },
-      ]);
     });
 
     socket.on('error', (data: any) => {
       calculatingRound.current = null;
+      setStartingRound(false);
+      setCreatingRoom(false);
       clearResultTimer();
       setError(data.error || 'An error occurred');
     });
@@ -251,6 +285,7 @@ export default function MCPage() {
     if (roundActive && timeLeft === 0) {
       emitCalculate(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timeLeft, roundActive]);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -272,34 +307,41 @@ export default function MCPage() {
 
   const handleCreateRoom = (e: React.FormEvent) => {
     e.preventDefault();
-    const newRoomId = Math.random().toString(36).substring(2, 8).toUpperCase();
-    
-    const socket = getSocket();
-    socket.emit('join_room', {
-      room_id: newRoomId,
-      player_name: 'MC',
-    });
+    if (creatingRoom) return;
 
+    const newRoomId = Math.random().toString(36).substring(2, 8).toUpperCase();
+    setRoomId(newRoomId);
     setPlayers([]);
     setPlayerScores([]);
     setRoundHistory([]);
     setRoundNumber(0);
     setResult(null);
-    setRoomId(newRoomId);
-    setRoomCreated(true);
+    setExecutionNames([]);
     setError('');
+    setCreatingRoom(true);
+
+    const socket = getSocket();
+    const emitJoin = () =>
+      socket.emit('join_room', {
+        room_id: newRoomId,
+        player_name: 'MC',
+      });
+
+    // Never lose the room creation because the socket was still connecting.
+    if (socket.connected) {
+      emitJoin();
+    } else {
+      socket.once('connect', emitJoin);
+    }
   };
 
   const handleStartRound = () => {
-    const socket = getSocket();
-    socket.emit('start_round', {
+    if (!roomId || startingRound) return;
+    setStartingRound(true);
+    setError('');
+    getSocket().emit('start_round', {
       room_id: roomId,
     });
-
-    setRoundActive(true);
-    setTimeLeft(ROUND_DURATION);
-    setResult(null);
-    setPlayers((prev) => prev.map((p) => ({ ...p, submitted: false })));
   };
 
   const emitCalculate = (force: boolean, resetGuard = false) => {
@@ -321,7 +363,6 @@ export default function MCPage() {
 
   const handleSkipRound = () => emitCalculate(true, true);
   const handleCalculateResults = () => emitCalculate(false, true);
-
   const handleRetryCalculate = () => emitCalculate(false, true);
 
   const handleBackToHome = () => {
@@ -329,8 +370,11 @@ export default function MCPage() {
     router.push('/');
   };
 
-  const submittedCount = players.filter((p) => p.submitted).length;
-  const allSubmitted = submittedCount === players.length && players.length > 0;
+  const alivePlayers = players.filter((player) => !player.eliminated);
+  const submittedCount = alivePlayers.filter((p) => p.submitted).length;
+  const allSubmitted =
+    submittedCount === alivePlayers.length && alivePlayers.length > 0;
+  const gameOver = Boolean(result?.game_over);
 
   if (!authChecked) {
     return null;
@@ -374,9 +418,13 @@ export default function MCPage() {
       <div className={styles.container}>
         <div className={styles.card}>
           <h2>🎛️ MC Control</h2>
-          <p>Create a new game room</p>
-          <button onClick={handleCreateRoom} className={styles.createButton}>
-            Create Room
+          <p>Create a new survival room</p>
+          <button
+            onClick={handleCreateRoom}
+            className={styles.createButton}
+            disabled={creatingRoom}
+          >
+            {creatingRoom ? 'Creating room...' : 'Create Room'}
           </button>
           {error && <p className={styles.error}>{error}</p>}
         </div>
@@ -392,6 +440,12 @@ export default function MCPage() {
           <h2>🎛️ MC Control</h2>
           <p className={styles.roomInfo}>Room: <strong>{roomId}</strong></p>
 
+          <div className={styles.survivalHint}>
+            🎯 Luật sinh tử: mỗi người có <strong>{startingLives} mạng</strong>.
+            Đoán sai bị <strong>-1</strong>. Khi target hội tụ về 0, ai chọn 0 cũng bị -1.
+            Hết mạng sẽ bị xử tử và thành khán giả.
+          </div>
+
           {error && (
             <div className={styles.error}>
               <span>⚠️ {error}</span>
@@ -404,16 +458,16 @@ export default function MCPage() {
           )}
 
           {/* Players Section */}
-          <PlayerList players={players} />
+          <PlayerList players={players} startingLives={startingLives} />
 
           {/* Round Control */}
           {!roundActive && !result && (
             <button
               onClick={handleStartRound}
-              disabled={players.length === 0}
+              disabled={alivePlayers.length === 0 || startingRound}
               className={styles.startButton}
             >
-              ▶ Start Round
+              {startingRound ? 'Starting...' : '▶ Start Round'}
             </button>
           )}
 
@@ -422,7 +476,7 @@ export default function MCPage() {
             <RoundTimer
               timeLeft={timeLeft}
               submittedCount={submittedCount}
-              totalPlayers={players.length}
+              totalPlayers={alivePlayers.length}
               onSkipRound={handleSkipRound}
               onCalculateResults={handleCalculateResults}
               allSubmitted={allSubmitted}
@@ -431,7 +485,11 @@ export default function MCPage() {
 
           {/* Results Section */}
           {result && (
-            <ResultsDisplay result={result} onNextRound={handleStartRound} />
+            <ResultsDisplay
+              result={result}
+              onNextRound={handleStartRound}
+              disabled={alivePlayers.length === 0 || startingRound || gameOver}
+            />
           )}
 
           <button onClick={handleBackToHome} className={styles.backButton}>
@@ -454,10 +512,17 @@ export default function MCPage() {
             textAlign: 'center',
             color: '#999',
           }}>
-            <p style={{ fontSize: '18px' }}>📊 Stats appear after first round</p>
+            <p style={{ fontSize: '18px' }}>📊 Stats appear when players join</p>
           </div>
         )}
       </div>
+
+      {executionNames.length > 0 && (
+        <ExecutionOverlay
+          names={executionNames}
+          onDismiss={() => setExecutionNames([])}
+        />
+      )}
     </div>
   );
 }
