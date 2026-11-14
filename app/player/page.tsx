@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { initSocket, getSocket, closeSocket } from '@/lib/socket';
+import { initSocket, getSocket, closeSocket, getDeviceId } from '@/lib/socket';
+import { getPlayerToken, savePlayerToken, clearPlayerToken } from '@/lib/auth';
 import ExecutionOverlay from '@/components/mc/ExecutionOverlay';
 import styles from './page.module.css';
 
@@ -41,12 +42,15 @@ export default function PlayerPage() {
   const [startingLives, setStartingLives] = useState(DEFAULT_STARTING_LIVES);
   const [eliminated, setEliminated] = useState(false);
   const [executionVisible, setExecutionVisible] = useState(false);
+  const [spectating, setSpectating] = useState(false);
+  const [notice, setNotice] = useState('');
 
   const roomIdRef = useRef('');
   const playerNameRef = useRef('');
   const playerIdRef = useRef('');
   const joinedRef = useRef(false);
   const eliminatedRef = useRef(false);
+  const spectatingRef = useRef(false);
 
   // Keep refs in sync for socket handlers that are registered only once.
   const rememberRoom = (value: string) => {
@@ -131,6 +135,10 @@ export default function PlayerPage() {
           room_id: roomIdRef.current,
           player_name: playerNameRef.current,
           player_id: playerIdRef.current || undefined,
+          player_token:
+            getPlayerToken(roomIdRef.current, playerNameRef.current) ||
+            undefined,
+          device_id: getDeviceId() || undefined,
         });
       }
     });
@@ -170,11 +178,64 @@ export default function PlayerPage() {
         playerNameRef.current;
       if (resolvedName) rememberName(resolvedName);
 
+      const activeRoom = String(data.room_id || roomIdRef.current || '');
+      if (data.player_token && activeRoom && resolvedName) {
+        if (data.reauth) {
+          clearPlayerToken(activeRoom, resolvedName);
+        }
+        savePlayerToken(activeRoom, resolvedName, data.player_token);
+      }
+
+      if (data.reauth) {
+        setNotice(
+          'Phiên người chơi cũ đã hết hạn (JWT 2 giờ). Bạn đã vào với một danh tính mới.'
+        );
+      } else if (data.rejoined) {
+        setNotice('Chào mừng trở lại! Hệ thống nhận ra danh tính của bạn.');
+      } else {
+        setNotice('');
+      }
+
       joinedRef.current = true;
       setJoined(true);
+      setSpectating(false);
+      spectatingRef.current = false;
       setError('');
 
       if (data.room_state) applyRoomState(data.room_state);
+    });
+
+    socket.on('session_demoted', (data: any) => {
+      // The MC switched the room to "one link per machine" for the match.
+      spectatingRef.current = true;
+      setSpectating(true);
+      setError(
+        data?.message ||
+          'Ván đấu đã bắt đầu: tab này chuyển sang chế độ khán giả.'
+      );
+    });
+
+    socket.on('player_executed', (data: any) => {
+      const executed = Array.isArray(data?.players) ? data.players : [];
+      if (
+        executed.some(
+          (player: any) => player?.player_id === playerIdRef.current
+        )
+      ) {
+        eliminatedRef.current = true;
+        setEliminated(true);
+        setExecutionVisible(true);
+      }
+    });
+
+    socket.on('room_closed', (data: any) => {
+      joinedRef.current = false;
+      spectatingRef.current = false;
+      setJoined(false);
+      setSpectating(false);
+      setEliminated(false);
+      eliminatedRef.current = false;
+      setError(data?.message || 'Phòng đã bị MC đóng.');
     });
 
     socket.on('room_state', (state: any) => {
@@ -209,6 +270,10 @@ export default function PlayerPage() {
       setSubmitting(false);
 
       if (!data?.success) {
+        if (data?.code === 'spectator') {
+          spectatingRef.current = true;
+          setSpectating(true);
+        }
         setSubmitted(false);
         setError(data?.error || 'Gửi dự đoán thất bại');
         return;
@@ -314,6 +379,8 @@ export default function PlayerPage() {
         room_id: nextRoom,
         player_name: nextName,
         player_id: playerIdRef.current || undefined,
+        player_token: getPlayerToken(nextRoom, nextName) || undefined,
+        device_id: getDeviceId() || undefined,
       });
 
     // Never lose the join because the socket was still connecting.
@@ -327,6 +394,10 @@ export default function PlayerPage() {
   const handleSubmitGuess = (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (spectating || spectatingRef.current) {
+      setError('Bạn đang là khán giả nên không thể dự đoán.');
+      return;
+    }
     if (eliminated || eliminatedRef.current) {
       setError('Bạn đã bị loại và không thể dự đoán nữa');
       return;
@@ -405,6 +476,13 @@ export default function PlayerPage() {
             <button type="submit" className={styles.submitButton} disabled={joining}>
               {joining ? 'Đang vào phòng...' : 'Vào phòng'}
             </button>
+            <button
+              type="button"
+              className={styles.secondaryButton}
+              onClick={() => router.push('/rooms')}
+            >
+              🏠 Xem danh sách phòng
+            </button>
           </form>
         </div>
       </div>
@@ -453,6 +531,15 @@ export default function PlayerPage() {
           </div>
         )}
 
+        {spectating && !eliminated && (
+          <div className={styles.spectatorBanner}>
+            👁️ Tab này đang ở chế độ khán giả. Phòng chỉ cho phép 1 link người
+            chơi mỗi máy khi ván đấu bắt đầu.
+          </div>
+        )}
+
+        {notice && <div className={styles.notice}>{notice}</div>}
+
         {gameOver && (
           <div className={iAmSurvivor ? styles.victory : styles.gameOver}>
             {iAmSurvivor
@@ -489,6 +576,10 @@ export default function PlayerPage() {
             {timeLeft <= 0 ? (
               <div className={styles.waiting}>
                 <p>Đang chờ MC công bố kết quả vòng này.</p>
+              </div>
+            ) : spectating ? (
+              <div className={styles.spectator}>
+                👁️ Bạn đang theo dõi ván đấu với tư cách khán giả.
               </div>
             ) : eliminated ? (
               <div className={styles.spectator}>

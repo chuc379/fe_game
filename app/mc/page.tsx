@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { initSocket, getSocket, closeSocket } from '@/lib/socket';
+import { initSocket, closeSocket } from '@/lib/socket';
 import { getToken, setToken, clearToken, login } from '@/lib/auth';
 import PlayerList from '@/components/mc/PlayerList';
 import RoundTimer from '@/components/mc/RoundTimer';
@@ -16,6 +16,9 @@ import styles from './page.module.css';
 const ROUND_DURATION = 30;
 const RESULT_TIMEOUT_MS = 15000;
 const DEFAULT_LIVES = 10;
+const DEFAULT_MAX_LINKS = 6;
+
+type SessionMode = 'multi_link' | 'single_link';
 
 const normalizePlayer = (data: any) => {
   const player = data?.player ?? data ?? {};
@@ -41,6 +44,82 @@ const normalizeScores = (scores: any[]) =>
     last_delta: Number(score.last_delta ?? 0),
   }));
 
+const normalizeConfig = (config: any) => {
+  const mode: SessionMode =
+    config?.session_mode === 'single_link' ? 'single_link' : 'multi_link';
+  const rawMax = Number(config?.max_player_links ?? DEFAULT_MAX_LINKS);
+  return {
+    sessionMode: mode,
+    maxPlayerLinks: Math.max(
+      1,
+      Math.min(20, Number.isFinite(rawMax) ? rawMax : DEFAULT_MAX_LINKS)
+    ),
+    lockOnRoundStart: config?.lock_on_round_start !== false,
+  };
+};
+
+interface SessionConfigFieldsProps {
+  sessionMode: SessionMode;
+  maxPlayerLinks: number;
+  lockOnRoundStart: boolean;
+  onSessionMode: (mode: SessionMode) => void;
+  onMaxPlayerLinks: (value: number) => void;
+  onLockOnRoundStart: (value: boolean) => void;
+}
+
+function SessionConfigFields({
+  sessionMode,
+  maxPlayerLinks,
+  lockOnRoundStart,
+  onSessionMode,
+  onMaxPlayerLinks,
+  onLockOnRoundStart,
+}: SessionConfigFieldsProps) {
+  return (
+    <div className={styles.configFields}>
+      <label className={styles.configField}>
+        <span>Chính sách link / máy</span>
+        <select
+          value={sessionMode}
+          onChange={(event) =>
+            onSessionMode(event.target.value as SessionMode)
+          }
+        >
+          <option value="multi_link">Nhiều link / máy (để test)</option>
+          <option value="single_link">Chỉ 1 link / máy</option>
+        </select>
+      </label>
+
+      {sessionMode === 'multi_link' && (
+        <label className={styles.configField}>
+          <span>Số link người chơi tối đa / máy</span>
+          <input
+            type="number"
+            min={1}
+            max={20}
+            value={maxPlayerLinks}
+            onChange={(event) =>
+              onMaxPlayerLinks(Number(event.target.value) || 1)
+            }
+          />
+        </label>
+      )}
+
+      <label className={styles.configCheck}>
+        <input
+          type="checkbox"
+          checked={lockOnRoundStart}
+          onChange={(event) => onLockOnRoundStart(event.target.checked)}
+        />
+        <span>
+          Khi bắt đầu ván, chỉ giữ 1 link người chơi / máy (các tab test
+          chuyển sang khán giả)
+        </span>
+      </label>
+    </div>
+  );
+}
+
 export default function MCPage() {
   const router = useRouter();
   const [roomId, setRoomId] = useState('');
@@ -64,18 +143,49 @@ export default function MCPage() {
   const [password, setPassword] = useState('');
   const [loggingIn, setLoggingIn] = useState(false);
 
-  const latest = useRef({ players, playerScores, roundNumber, roomId, roundActive, roomCreated });
+  // Room session policy (Strategy/Factory on the server).
+  const [sessionMode, setSessionMode] = useState<SessionMode>('multi_link');
+  const [maxPlayerLinks, setMaxPlayerLinks] = useState(DEFAULT_MAX_LINKS);
+  const [lockOnRoundStart, setLockOnRoundStart] = useState(true);
+  const [applyingConfig, setApplyingConfig] = useState(false);
+  const [configNotice, setConfigNotice] = useState('');
+  const [myRooms, setMyRooms] = useState<any[]>([]);
+
+  const latest = useRef({
+    players,
+    playerScores,
+    roundNumber,
+    roomId,
+    roundActive,
+    roomCreated,
+  });
+  const pendingRoomRef = useRef('');
   const calculatingRound = useRef<number | null>(null);
   const resultTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    latest.current = { players, playerScores, roundNumber, roomId, roundActive, roomCreated };
+    latest.current = {
+      players,
+      playerScores,
+      roundNumber,
+      roomId,
+      roundActive,
+      roomCreated,
+    };
   });
 
   useEffect(() => {
     return () => {
       if (resultTimer.current) clearTimeout(resultTimer.current);
     };
+  }, []);
+
+  // Deep link from the public room list: /mc?room=ABC123
+  useEffect(() => {
+    const queryRoom = new URLSearchParams(window.location.search).get('room');
+    if (queryRoom) {
+      pendingRoomRef.current = queryRoom.trim().toUpperCase();
+    }
   }, []);
 
   const clearResultTimer = () => {
@@ -91,6 +201,28 @@ export default function MCPage() {
     setAuthChecked(true);
   }, []);
 
+  const applyConfig = useCallback((config: any) => {
+    if (!config) return;
+    const next = normalizeConfig(config);
+    setSessionMode(next.sessionMode);
+    setMaxPlayerLinks(next.maxPlayerLinks);
+    setLockOnRoundStart(next.lockOnRoundStart);
+  }, []);
+
+  const resetGameState = () => {
+    setPlayers([]);
+    setPlayerScores([]);
+    setRoundHistory([]);
+    setRoundNumber(0);
+    setResult(null);
+    setExecutionNames([]);
+    setStartingLives(DEFAULT_LIVES);
+    setRoundActive(false);
+    setTimeLeft(ROUND_DURATION);
+    clearResultTimer();
+    calculatingRound.current = null;
+  };
+
   useEffect(() => {
     if (!token) return;
 
@@ -104,6 +236,7 @@ export default function MCPage() {
         setStartingLives(Number(state.started_lives) || DEFAULT_LIVES);
       }
       if (state.current_round) setRoundNumber(Number(state.current_round) || 0);
+      if (state.config) applyConfig(state.config);
 
       setPlayers(
         (state.players || []).map((player: any) => ({
@@ -118,13 +251,25 @@ export default function MCPage() {
       }
     };
 
+    const joinExistingRoom = (targetRoomId: string) => {
+      setCreatingRoom(true);
+      socket.emit('join_room', {
+        room_id: targetRoomId,
+        player_name: 'MC',
+      });
+    };
+
     socket.on('connect', () => {
       console.log('MC connected to server');
+      socket.emit('list_rooms', {});
+
       const currentRoom = latest.current.roomId;
       // Re-enter the room after a reconnect: Socket.IO rooms are bound to a
       // socket id, so a new socket must rejoin to keep receiving broadcasts.
       if (latest.current.roomCreated && currentRoom) {
-        socket.emit('join_room', { room_id: currentRoom, player_name: 'MC' });
+        joinExistingRoom(currentRoom);
+      } else if (pendingRoomRef.current) {
+        joinExistingRoom(pendingRoomRef.current);
       }
     });
 
@@ -139,20 +284,80 @@ export default function MCPage() {
       }
     });
 
+    socket.on('rooms_list', (data: any) => {
+      if (Array.isArray(data?.mine)) {
+        setMyRooms(data.mine);
+      }
+    });
+
+    socket.on('create_room_response', (data: any) => {
+      setCreatingRoom(false);
+      if (!data?.success) {
+        setError(data?.error || 'Failed to create room');
+        return;
+      }
+
+      const room = data.room || {};
+      setRoomId(room.room_id || '');
+      setRoomCreated(true);
+      setError('');
+      setConfigNotice('');
+      applyConfig(data.config || room.config);
+      if (data.room_state) applyRoomState(data.room_state);
+    });
+
     socket.on('join_room_response', (data: any) => {
       setCreatingRoom(false);
       if (data?.success) {
         setRoomCreated(true);
         setError('');
         if (data.room_id) setRoomId(data.room_id);
+        applyConfig(data.config || data.room_state?.config);
         if (data.room_state) applyRoomState(data.room_state);
       } else {
         setError(data?.error || 'Failed to create room');
       }
     });
 
+    socket.on('update_room_response', (data: any) => {
+      setApplyingConfig(false);
+      if (!data?.success) {
+        setError(data?.error || 'Failed to update room');
+        return;
+      }
+      applyConfig(data.config || data.room?.config);
+      setConfigNotice('Đã cập nhật cấu hình phòng.');
+      setError('');
+    });
+
+    socket.on('delete_room_response', (data: any) => {
+      if (!data?.success) {
+        setError(data?.error || 'Failed to delete room');
+        return;
+      }
+      setMyRooms((rooms) =>
+        rooms.filter((room) => room.room_id !== data.room_id)
+      );
+      setRoomCreated(false);
+      setRoomId('');
+      resetGameState();
+      setConfigNotice('');
+      setError('');
+    });
+
+    socket.on('room_config_updated', (data: any) => {
+      if (data?.config) applyConfig(data.config);
+    });
+
     socket.on('room_state', (state: any) => {
       applyRoomState(state);
+    });
+
+    socket.on('room_closed', (data: any) => {
+      setRoomCreated(false);
+      setRoomId('');
+      resetGameState();
+      setError(data?.message || 'Phòng đã bị đóng.');
     });
 
     socket.on('start_round_response', (data: any) => {
@@ -212,6 +417,21 @@ export default function MCPage() {
       }
     });
 
+    socket.on('player_executed', (data: any) => {
+      const names: string[] = Array.isArray(data?.names)
+        ? data.names.filter(Boolean)
+        : Array.isArray(data?.players)
+          ? data.players
+              .map((player: any) => player?.player_name)
+              .filter(Boolean)
+          : [];
+      if (names.length > 0) {
+        setExecutionNames((prev) =>
+          Array.from(new Set([...prev, ...names]))
+        );
+      }
+    });
+
     socket.on('round_result_ready', (data: any) => {
       setRoundActive(false);
       setStartingRound(false);
@@ -233,9 +453,10 @@ export default function MCPage() {
         ? resultData.eliminated
         : [];
       if (executed.length > 0) {
-        setExecutionNames(
-          executed.map((player: any) => player.player_name ?? player.name ?? 'Unknown')
-        );
+        const names = executed
+          .map((player: any) => player.player_name ?? player.name ?? 'Unknown')
+          .filter(Boolean);
+        setExecutionNames((prev) => Array.from(new Set([...prev, ...names])));
       }
 
       const round = Number(data?.round_id) || latest.current.roundNumber;
@@ -256,6 +477,7 @@ export default function MCPage() {
       calculatingRound.current = null;
       setStartingRound(false);
       setCreatingRoom(false);
+      setApplyingConfig(false);
       clearResultTimer();
       setError(data.error || 'An error occurred');
     });
@@ -269,7 +491,7 @@ export default function MCPage() {
       clearResultTimer();
       closeSocket();
     };
-  }, [token]);
+  }, [token, applyConfig]);
 
   // Timer countdown
   useEffect(() => {
@@ -307,30 +529,53 @@ export default function MCPage() {
     setPassword('');
   };
 
-  const handleCreateRoom = (e: React.FormEvent) => {
-    e.preventDefault();
+  const currentConfig = () => ({
+    session_mode: sessionMode,
+    max_player_links: maxPlayerLinks,
+    lock_on_round_start: lockOnRoundStart,
+  });
+
+  const handleCreateRoom = () => {
     if (creatingRoom) return;
 
-    const newRoomId = Math.random().toString(36).substring(2, 8).toUpperCase();
-    setRoomId(newRoomId);
-    setPlayers([]);
-    setPlayerScores([]);
-    setRoundHistory([]);
-    setRoundNumber(0);
-    setResult(null);
-    setExecutionNames([]);
-    setStartingLives(DEFAULT_LIVES);
-    setError('');
     setCreatingRoom(true);
+    setError('');
+    setConfigNotice('');
+    setRoomId('');
+    resetGameState();
 
-    const socket = getSocket();
-    const emitJoin = () =>
-      socket.emit('join_room', {
-        room_id: newRoomId,
-        player_name: 'MC',
+    const socket = initSocket(token || undefined);
+    const emitCreate = () =>
+      socket.emit('create_room', {
+        config: currentConfig(),
+        mc_name: 'MC',
       });
 
     // Never lose the room creation because the socket was still connecting.
+    if (socket.connected) {
+      emitCreate();
+    } else {
+      socket.once('connect', emitCreate);
+    }
+  };
+
+  const enterRoom = (targetRoomId: string) => {
+    const normalized = targetRoomId.trim().toUpperCase();
+    if (!normalized || creatingRoom) return;
+
+    setCreatingRoom(true);
+    setError('');
+    setConfigNotice('');
+    setRoomId(normalized);
+    resetGameState();
+
+    const socket = initSocket(token || undefined);
+    const emitJoin = () =>
+      socket.emit('join_room', {
+        room_id: normalized,
+        player_name: 'MC',
+      });
+
     if (socket.connected) {
       emitJoin();
     } else {
@@ -338,11 +583,32 @@ export default function MCPage() {
     }
   };
 
+  const handleApplyConfig = () => {
+    if (!roomId || applyingConfig) return;
+    setApplyingConfig(true);
+    setConfigNotice('');
+    initSocket(token || undefined).emit('update_room', {
+      room_id: roomId,
+      config: currentConfig(),
+    });
+  };
+
+  const handleDeleteRoom = () => {
+    if (!roomId) return;
+    if (typeof window !== 'undefined') {
+      const confirmed = window.confirm(
+        `Xóa phòng ${roomId}? Toàn bộ người chơi và điểm số sẽ bị xóa.`
+      );
+      if (!confirmed) return;
+    }
+    initSocket(token || undefined).emit('delete_room', { room_id: roomId });
+  };
+
   const handleStartRound = () => {
     if (!roomId || startingRound) return;
     setStartingRound(true);
     setError('');
-    getSocket().emit('start_round', {
+    initSocket(token || undefined).emit('start_round', {
       room_id: roomId,
     });
   };
@@ -356,7 +622,7 @@ export default function MCPage() {
     if (calculatingRound.current === roundNumber) return;
 
     calculatingRound.current = roundNumber;
-    const socket = getSocket();
+    const socket = initSocket(token || undefined);
     socket.emit('calculate_result', {
       room_id: roomId,
       round_id: roundNumber,
@@ -425,7 +691,23 @@ export default function MCPage() {
       <div className={styles.container}>
         <div className={styles.card}>
           <h2>🎛️ MC Control</h2>
-          <p>Create a new survival room</p>
+          <p>
+            Tạo phòng mới. Mã phòng do server sinh ra và có thể cấu hình chính
+            sách link cho từng máy.
+          </p>
+
+          <div className={styles.configPanel}>
+            <h3>⚙️ Session policy</h3>
+            <SessionConfigFields
+              sessionMode={sessionMode}
+              maxPlayerLinks={maxPlayerLinks}
+              lockOnRoundStart={lockOnRoundStart}
+              onSessionMode={setSessionMode}
+              onMaxPlayerLinks={setMaxPlayerLinks}
+              onLockOnRoundStart={setLockOnRoundStart}
+            />
+          </div>
+
           <button
             onClick={handleCreateRoom}
             className={styles.createButton}
@@ -433,7 +715,41 @@ export default function MCPage() {
           >
             {creatingRoom ? 'Creating room...' : 'Create Room'}
           </button>
+
           {error && <p className={styles.error}>{error}</p>}
+
+          {myRooms.length > 0 && (
+            <div className={styles.roomList}>
+              <h3>Phòng của bạn</h3>
+              {myRooms.map((room) => (
+                <div key={room.room_id} className={styles.roomListItem}>
+                  <div>
+                    <strong>{room.room_id}</strong>
+                    <span>
+                      {' '}
+                      · {room.player_count || 0} người ·{' '}
+                      {room.config?.label || 'Nhiều link / máy'}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => enterRoom(room.room_id)}
+                    className={styles.rejoinButton}
+                  >
+                    Vào lại
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={() => router.push('/rooms')}
+            className={styles.backButton}
+          >
+            🏠 Danh sách phòng công khai
+          </button>
         </div>
       </div>
     );
@@ -451,6 +767,38 @@ export default function MCPage() {
             🎯 Luật sinh tử: mỗi người có <strong>{startingLives} mạng</strong>.
             Đoán sai bị <strong>-1</strong>. Khi target hội tụ về 0, ai chọn 0 cũng bị -1.
             Hết mạng sẽ bị xử tử và thành khán giả.
+          </div>
+
+          <div className={styles.configPanel}>
+            <h3>⚙️ Session policy (thay đổi trực tiếp)</h3>
+            <SessionConfigFields
+              sessionMode={sessionMode}
+              maxPlayerLinks={maxPlayerLinks}
+              lockOnRoundStart={lockOnRoundStart}
+              onSessionMode={setSessionMode}
+              onMaxPlayerLinks={setMaxPlayerLinks}
+              onLockOnRoundStart={setLockOnRoundStart}
+            />
+            <div className={styles.configActions}>
+              <button
+                type="button"
+                onClick={handleApplyConfig}
+                disabled={applyingConfig}
+                className={styles.applyButton}
+              >
+                {applyingConfig ? 'Đang lưu...' : 'Áp dụng'}
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteRoom}
+                className={styles.deleteButton}
+              >
+                Xóa phòng
+              </button>
+            </div>
+            {configNotice && (
+              <p className={styles.configSaved}>{configNotice}</p>
+            )}
           </div>
 
           {error && (

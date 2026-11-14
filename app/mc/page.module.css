@@ -480,3 +480,138 @@
   background: #5a6268;
   transform: translateY(-2px);
 }
+
+.configPanel {
+  background: #f6f4ff;
+  border: 1px solid #ddd6ff;
+  border-radius: 12px;
+  padding: 16px;
+  margin: 18px 0;
+}
+
+.configPanel h3 {
+  margin: 0 0 12px 0;
+  font-size: 16px;
+  color: #3b2b6b;
+}
+
+.configFields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.configField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #444;
+}
+
+.configField select,
+.configField input[type='number'] {
+  padding: 9px 10px;
+  border: 1px solid #c9c1ea;
+  border-radius: 8px;
+  font-size: 14px;
+  background: white;
+  color: #222;
+}
+
+.configCheck {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+  color: #444;
+  line-height: 1.4;
+}
+
+.configCheck input[type='checkbox'] {
+  margin-top: 2px;
+}
+
+.configActions {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.applyButton {
+  flex: 1;
+  padding: 10px 14px;
+  border: none;
+  border-radius: 8px;
+  background: #667eea;
+  color: white;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.applyButton:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.deleteButton {
+  padding: 10px 14px;
+  border: 1px solid #e0a4a4;
+  border-radius: 8px;
+  background: #fff5f5;
+  color: #b00020;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.deleteButton:hover {
+  background: #ffe8e8;
+}
+
+.configSaved {
+  margin: 10px 0 0 0;
+  color: #1e7a3c;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.roomList {
+  margin-top: 24px;
+  border-top: 1px solid #eee;
+  padding-top: 16px;
+}
+
+.roomList h3 {
+  margin: 0 0 12px 0;
+  font-size: 16px;
+  color: #333;
+}
+
+.roomListItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid #e6e6e6;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  font-size: 14px;
+  color: #444;
+}
+
+.rejoinButton {
+  padding: 7px 12px;
+  border: none;
+  border-radius: 6px;
+  background: #667eea;
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.rejoinButton:hover {
+  background: #5568d3;
+}
