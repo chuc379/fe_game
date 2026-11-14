@@ -50,7 +50,7 @@ export default function ExecutionOverlay({
         ☠️
       </div>
       <div className={styles.stamp}>{title}</div>
-      <p className={styles.names}>{names.filter(Boolean).join(' • ')}</p>
+      <p className={styles.names}>{names.filter(Boolean).join(', ')}</p>
       <p className={styles.sub}>{subtitle}</p>
 
       {onDismiss && (

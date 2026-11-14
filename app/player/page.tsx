@@ -51,6 +51,8 @@ export default function PlayerPage() {
   const joinedRef = useRef(false);
   const eliminatedRef = useRef(false);
   const spectatingRef = useRef(false);
+  // Authoritative round deadline (epoch ms) sent by the server.
+  const roundDeadlineRef = useRef(0);
 
   // Keep refs in sync for socket handlers that are registered only once.
   const rememberRoom = (value: string) => {
@@ -110,6 +112,12 @@ export default function PlayerPage() {
       }
       if (state.round_status === 'LOCKED') {
         setRoundActive(true);
+        const remaining = Number(state.time_left);
+        if (Number.isFinite(remaining)) setTimeLeft(Math.max(0, remaining));
+        const deadline = Number(state.round_deadline);
+        if (Number.isFinite(deadline) && deadline > 0) {
+          roundDeadlineRef.current = deadline;
+        }
       } else if (state.round_status === 'ENDED' || state.round_status === 'WAITING') {
         setRoundActive(false);
       }
@@ -245,6 +253,7 @@ export default function PlayerPage() {
     socket.on('round_started', (data: any) => {
       const roundId = Number(data?.round_id) || 0;
       const roundDuration = Number(data?.duration) || DEFAULT_ROUND_DURATION;
+      const remaining = Number(data?.time_left ?? roundDuration);
 
       setCurrentRound(roundId);
       setRoundActive(true);
@@ -252,9 +261,23 @@ export default function PlayerPage() {
       setSubmitting(false);
       setGuess('');
       setLastGuess(null);
-      setTimeLeft(roundDuration);
+      setTimeLeft(Number.isFinite(remaining) ? remaining : roundDuration);
+      roundDeadlineRef.current = Number(data?.deadline) || 0;
       setResult(null);
       setError('');
+    });
+
+    // The server broadcasts the remaining time every second so all clients
+    // (and tabs that were in the background) show the same countdown.
+    socket.on('round_tick', (data: any) => {
+      const remaining = Number(data?.time_left);
+      if (Number.isFinite(remaining)) {
+        setTimeLeft(Math.max(0, remaining));
+      }
+      const deadline = Number(data?.deadline);
+      if (Number.isFinite(deadline) && deadline > 0) {
+        roundDeadlineRef.current = deadline;
+      }
     });
 
     socket.on('player_submitted', (data: any) => {
@@ -293,6 +316,7 @@ export default function PlayerPage() {
       setRoundActive(false);
       setSubmitting(false);
       setTimeLeft(0);
+      roundDeadlineRef.current = 0;
       setError('');
       setResult(resultData);
 
@@ -345,16 +369,25 @@ export default function PlayerPage() {
     };
   }, []);
 
-  // Timer countdown
+  // Timer countdown driven by the server deadline so every client agrees.
   useEffect(() => {
-    if (!roundActive || timeLeft <= 0) return;
+    if (!roundActive) return;
 
-    const timer = setTimeout(() => {
-      setTimeLeft((value) => Math.max(0, value - 1));
-    }, 1000);
+    const tick = () => {
+      const deadline = roundDeadlineRef.current;
+      if (deadline > 0) {
+        setTimeLeft(
+          Math.max(0, Math.ceil((deadline - Date.now()) / 1000))
+        );
+      } else {
+        setTimeLeft((value) => Math.max(0, value - 1));
+      }
+    };
 
-    return () => clearTimeout(timer);
-  }, [roundActive, timeLeft]);
+    tick();
+    const timer = setInterval(tick, 500);
+    return () => clearInterval(timer);
+  }, [roundActive]);
 
   const handleJoinRoom = (e: React.FormEvent) => {
     e.preventDefault();
@@ -364,6 +397,11 @@ export default function PlayerPage() {
 
     if (!nextRoom || !nextName) {
       setError('Vui lòng nhập mã phòng và tên của bạn');
+      return;
+    }
+
+    if (nextName.length > 8) {
+      setError('Tên người chơi tối đa 8 ký tự');
       return;
     }
 
@@ -465,11 +503,12 @@ export default function PlayerPage() {
             />
             <input
               type="text"
-              placeholder="Tên của bạn"
+              placeholder="Tên của bạn (tối đa 8 ký tự)"
               value={playerName}
               onChange={(e) => setPlayerName(e.target.value)}
               className={styles.input}
               autoComplete="off"
+              maxLength={8}
               autoFocus={Boolean(roomId)}
             />
             {error && <p className={styles.error}>{error}</p>}

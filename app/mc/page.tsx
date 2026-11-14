@@ -162,6 +162,8 @@ export default function MCPage() {
   const pendingRoomRef = useRef('');
   const calculatingRound = useRef<number | null>(null);
   const resultTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Authoritative round deadline (epoch ms) sent by the server.
+  const roundDeadlineRef = useRef<number>(0);
 
   useEffect(() => {
     latest.current = {
@@ -219,6 +221,7 @@ export default function MCPage() {
     setStartingLives(DEFAULT_LIVES);
     setRoundActive(false);
     setTimeLeft(ROUND_DURATION);
+    roundDeadlineRef.current = 0;
     clearResultTimer();
     calculatingRound.current = null;
   };
@@ -237,6 +240,22 @@ export default function MCPage() {
       }
       if (state.current_round) setRoundNumber(Number(state.current_round) || 0);
       if (state.config) applyConfig(state.config);
+
+      // Recover the running countdown after a reconnect/refresh.
+      if (state.round_status === 'LOCKED') {
+        setRoundActive(true);
+        const remaining = Number(state.time_left);
+        if (Number.isFinite(remaining)) setTimeLeft(Math.max(0, remaining));
+        const deadline = Number(state.round_deadline);
+        if (Number.isFinite(deadline) && deadline > 0) {
+          roundDeadlineRef.current = deadline;
+        }
+      } else if (
+        state.round_status === 'ENDED' ||
+        state.round_status === 'WAITING'
+      ) {
+        setRoundActive(false);
+      }
 
       setPlayers(
         (state.players || []).map((player: any) => ({
@@ -365,7 +384,9 @@ export default function MCPage() {
       if (data?.success) {
         setRoundNumber(Number(data.round_id) || 0);
         setRoundActive(true);
-        setTimeLeft(Number(data.duration) || ROUND_DURATION);
+        const remaining = Number(data.time_left ?? data.duration);
+        setTimeLeft(Number.isFinite(remaining) ? remaining : ROUND_DURATION);
+        roundDeadlineRef.current = Number(data.deadline) || 0;
         setResult(null);
         setExecutionNames([]);
         calculatingRound.current = null;
@@ -375,6 +396,19 @@ export default function MCPage() {
       } else {
         setRoundActive(false);
         setError(data?.error || 'Failed to start round');
+      }
+    });
+
+    // Authoritative countdown from the server: every client shows the same
+    // number, even after a reconnect or when a tab was throttled.
+    socket.on('round_tick', (data: any) => {
+      const remaining = Number(data?.time_left);
+      if (Number.isFinite(remaining)) {
+        setTimeLeft(Math.max(0, remaining));
+      }
+      const deadline = Number(data?.deadline);
+      if (Number.isFinite(deadline) && deadline > 0) {
+        roundDeadlineRef.current = deadline;
       }
     });
 
@@ -436,6 +470,7 @@ export default function MCPage() {
       setRoundActive(false);
       setStartingRound(false);
       setTimeLeft(0);
+      roundDeadlineRef.current = 0;
       const resultData = data?.result ?? null;
       setResult(resultData);
       setError('');
@@ -493,16 +528,26 @@ export default function MCPage() {
     };
   }, [token, applyConfig]);
 
-  // Timer countdown
+  // Timer countdown. The deadline comes from the server, so every client
+  // (and every reconnect) renders exactly the same remaining time.
   useEffect(() => {
-    if (!roundActive || timeLeft <= 0) return;
+    if (!roundActive) return;
 
-    const timer = setTimeout(() => {
-      setTimeLeft(timeLeft - 1);
-    }, 1000);
+    const tick = () => {
+      const deadline = roundDeadlineRef.current;
+      if (deadline > 0) {
+        setTimeLeft(
+          Math.max(0, Math.ceil((deadline - Date.now()) / 1000))
+        );
+      } else {
+        setTimeLeft((value) => Math.max(0, value - 1));
+      }
+    };
 
-    return () => clearTimeout(timer);
-  }, [roundActive, timeLeft]);
+    tick();
+    const timer = setInterval(tick, 500);
+    return () => clearInterval(timer);
+  }, [roundActive]);
 
   // Auto-end when timer reaches 0
   useEffect(() => {
@@ -640,7 +685,7 @@ export default function MCPage() {
   };
 
   const dismissExecution = useCallback(() => {
-    setExecutionNames((names) => names.slice(1));
+    setExecutionNames([]);
   }, []);
 
   const alivePlayers = players.filter((player) => !player.eliminated);
@@ -862,7 +907,11 @@ export default function MCPage() {
               players={playerScores}
               startingLives={startingLives}
             />
-            <ScoreChart players={playerScores} />
+            <ScoreChart
+              players={playerScores}
+              guesses={Array.isArray(result?.guesses) ? result.guesses : []}
+              revealed={Boolean(result)}
+            />
             <RoundHistoryChart roundHistory={roundHistory} />
           </>
         ) : (
@@ -878,8 +927,8 @@ export default function MCPage() {
 
       {executionNames.length > 0 && (
         <ExecutionOverlay
-          names={executionNames.slice(0, 1)}
-          autoHideMs={3000}
+          names={executionNames}
+          autoHideMs={4000}
           onDismiss={dismissExecution}
         />
       )}

@@ -238,6 +238,43 @@
   color: #155724;
 }
 
+.winnerBox {
+  background: #fff;
+  border: 2px solid #ffc107;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 15px;
+}
+
+.winnerBox h4 {
+  margin: 0 0 10px 0;
+  color: #7a5b00;
+  font-size: 15px;
+}
+
+/* Each winner on its own line; the list scrolls from the bottom. */
+.winnerScroll {
+  max-height: 168px;
+  overflow-y: auto;
+  scroll-behavior: smooth;
+  border-top: 1px dashed rgba(0, 0, 0, 0.12);
+}
+
+.winnerRow {
+  padding: 7px 8px;
+  border-bottom: 1px dashed rgba(0, 0, 0, 0.08);
+  font-size: 15px;
+  font-weight: 700;
+  color: #155724;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.winnerRow:last-child {
+  border-bottom: none;
+}
+
 .resultsGrid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);

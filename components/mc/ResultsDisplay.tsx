@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useMemo, useRef } from 'react';
 import styles from '@/app/mc/page.module.css';
 
 interface ResultsDisplayProps {
@@ -25,6 +26,36 @@ export default function ResultsDisplay({
     (player) => Number(player.last_delta ?? 0) !== 0
   );
 
+  // Every player tied on the winning number is a winner. When the round
+  // converged there is no "winner", so show the players that stayed safe.
+  const winners = useMemo(() => {
+    const declared = Array.isArray(result?.winners) ? result.winners : [];
+    if (declared.length > 0) {
+      return declared
+        .map((player: any) => player?.player_name ?? player?.name)
+        .filter(Boolean);
+    }
+    if (result?.convergence) {
+      return scoreboard
+        .filter(
+          (player) =>
+            !player.eliminated && Number(player.last_delta ?? 0) === 0
+        )
+        .map((player) => player.player_name)
+        .filter(Boolean);
+    }
+    if (result?.winner?.player_name) return [result.winner.player_name];
+    return [];
+  }, [result, scoreboard]);
+
+  const winnersRef = useRef<HTMLDivElement | null>(null);
+
+  // The list scrolls from the bottom so the latest names are visible.
+  useEffect(() => {
+    const node = winnersRef.current;
+    if (node) node.scrollTop = node.scrollHeight;
+  }, [winners.length]);
+
   return (
     <div className={styles.resultsSection}>
       <h3>📊 Round Results</h3>
@@ -43,10 +74,25 @@ export default function ResultsDisplay({
           <strong>{result.target}</strong>
         </div>
         <div className={styles.resultCard}>
-          <span>Winner</span>
-          <strong>{result.winner?.player_name ?? '—'}</strong>
+          <span>Winners</span>
+          <strong>{winners.length || '—'}</strong>
         </div>
       </div>
+
+      {winners.length > 0 && (
+        <div className={styles.winnerBox}>
+          <h4>
+            🏆 Người thắng / an toàn ({winners.length})
+          </h4>
+          <div className={styles.winnerScroll} ref={winnersRef}>
+            {winners.map((name: string, index: number) => (
+              <div key={`${name}-${index}`} className={styles.winnerRow}>
+                {name}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {result.convergence && (
         <div className={styles.ruleNotice}>
