@@ -12,6 +12,7 @@ import RankingTable from '@/components/mc/RankingTable';
 import ScoreChart from '@/components/mc/ScoreChart';
 import RoundHistoryChart from '@/components/mc/RoundHistoryChart';
 import ExecutionOverlay from '@/components/mc/ExecutionOverlay';
+import PlayerJoinQR from '@/components/mc/PlayerJoinQR';
 import styles from './page.module.css';
 
 const ROUND_DURATION = 30;
@@ -811,6 +812,8 @@ export default function MCPage() {
         <div className={styles.card} style={{ margin: '0' }}>
           <h2>🎛️ MC Control</h2>
           <p className={styles.roomInfo}>Room: <strong>{roomId}</strong></p>
+
+          <PlayerJoinQR roomId={roomId} />
 
           <div className={styles.survivalHint}>
             🎯 Luật sinh tử: mỗi người có <strong>{startingLives} mạng</strong>.

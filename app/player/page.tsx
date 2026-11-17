@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { initSocket, getSocket, closeSocket, getDeviceId } from '@/lib/socket';
-import { getPlayerToken, savePlayerToken, clearPlayerToken } from '@/lib/auth';
+import { getPlayerToken, savePlayerToken, clearPlayerToken, getSavedPlayerName } from '@/lib/auth';
 import { invalidateRoomCache } from '@/lib/roomCache';
 import ExecutionOverlay from '@/components/mc/ExecutionOverlay';
 import RankMovementChart from '@/components/player/RankMovementChart';
@@ -403,6 +403,40 @@ export default function PlayerPage() {
       socket.removeAllListeners();
       closeSocket();
     };
+  }, []);
+
+  // Scanning the room QR (?room=...) auto-rejoins returning players: the room
+  // and their saved name are already known, so no extra typing is needed.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const queryRoom = normalizeRoomId(params.get('room') || '');
+    if (!queryRoom) return;
+
+    // Only auto-join when this browser already played in this exact room.
+    const savedName = getSavedPlayerName(queryRoom);
+    if (!savedName) return;
+
+    rememberRoom(queryRoom);
+    rememberName(savedName);
+    setJoining(true);
+
+    const socket = initSocket();
+    const emitJoin = () => {
+      if (joinedRef.current) return;
+      socket.emit('join_room', {
+        room_id: queryRoom,
+        player_name: savedName,
+        player_id: playerIdRef.current || undefined,
+        player_token: getPlayerToken(queryRoom, savedName) || undefined,
+        device_id: getDeviceId() || undefined,
+      });
+    };
+
+    if (socket.connected) {
+      emitJoin();
+    } else {
+      socket.once('connect', emitJoin);
+    }
   }, []);
 
   // Timer countdown driven by the server deadline so every client agrees.
