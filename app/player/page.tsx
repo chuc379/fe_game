@@ -4,7 +4,9 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { initSocket, getSocket, closeSocket, getDeviceId } from '@/lib/socket';
 import { getPlayerToken, savePlayerToken, clearPlayerToken } from '@/lib/auth';
+import { invalidateRoomCache } from '@/lib/roomCache';
 import ExecutionOverlay from '@/components/mc/ExecutionOverlay';
+import RankMovementChart from '@/components/player/RankMovementChart';
 import styles from './page.module.css';
 
 const DEFAULT_STARTING_LIVES = 10;
@@ -53,6 +55,9 @@ export default function PlayerPage() {
   const spectatingRef = useRef(false);
   // Authoritative round deadline (epoch ms) sent by the server.
   const roundDeadlineRef = useRef(0);
+  // Rank before the current result, used to animate rank movement.
+  const prevRanksRef = useRef<Record<string, number>>({});
+  const [rankDeltas, setRankDeltas] = useState<Record<string, number>>({});
 
   // Keep refs in sync for socket handlers that are registered only once.
   const rememberRoom = (value: string) => {
@@ -133,6 +138,18 @@ export default function PlayerPage() {
         setEliminated(isOut);
         eliminatedRef.current = isOut;
       }
+
+      if (Array.isArray(state.scoreboard)) {
+        const ranks: Record<string, number> = {};
+        for (const entry of state.scoreboard) {
+          if (entry?.player_id && entry?.rank != null) {
+            ranks[entry.player_id] = Number(entry.rank);
+          }
+        }
+        if (Object.keys(ranks).length > 0) {
+          prevRanksRef.current = ranks;
+        }
+      }
     };
 
     socket.on('connect', () => {
@@ -209,6 +226,8 @@ export default function PlayerPage() {
       setSpectating(false);
       spectatingRef.current = false;
       setError('');
+      // The player count on the public directory changed.
+      invalidateRoomCache();
 
       if (data.room_state) applyRoomState(data.room_state);
     });
@@ -325,6 +344,23 @@ export default function PlayerPage() {
       const scoreboard = Array.isArray(resultData.scoreboard)
         ? resultData.scoreboard
         : [];
+
+      // Compare the new ranking with the one before this round so the player
+      // can see how many places they moved (positive = climbed).
+      const newRanks: Record<string, number> = {};
+      for (const entry of scoreboard) {
+        if (entry?.player_id && entry?.rank != null) {
+          newRanks[entry.player_id] = Number(entry.rank);
+        }
+      }
+      const deltas: Record<string, number> = {};
+      for (const [id, rank] of Object.entries(newRanks)) {
+        const previous = prevRanksRef.current[id];
+        if (previous != null) deltas[id] = previous - rank;
+      }
+      prevRanksRef.current = newRanks;
+      setRankDeltas(deltas);
+
       const me = scoreboard.find(
         (player: any) => player?.player_id === playerIdRef.current
       );
@@ -601,20 +637,9 @@ export default function PlayerPage() {
 
         {roundActive && !result && (
           <div className={styles.gameSection}>
-            <div className={styles.timer}>
-              {timeLeft > 0 ? (
-                <>
-                  Thời gian còn lại:{' '}
-                  <span className={styles.timerValue}>{timeLeft}s</span>
-                </>
-              ) : (
-                <span className={styles.timerDone}>⏳ Hết giờ — đang chờ kết quả...</span>
-              )}
-            </div>
-
             {timeLeft <= 0 ? (
               <div className={styles.waiting}>
-                <p>Đang chờ MC công bố kết quả vòng này.</p>
+                <p>⏳ Hết giờ — đang chờ MC công bố kết quả vòng này.</p>
               </div>
             ) : spectating ? (
               <div className={styles.spectator}>
@@ -683,9 +708,21 @@ export default function PlayerPage() {
               </div>
               <div className={styles.resultItem}>
                 <span>Người thắng</span>
-                <strong>{result.winner?.player_name ?? '—'}</strong>
+                <strong>
+                  {Array.isArray(result.winners) && result.winners.length > 1
+                    ? `${result.winners.length} người`
+                    : result.winner?.player_name ?? '—'}
+                </strong>
               </div>
             </div>
+
+            <RankMovementChart
+              players={
+                Array.isArray(result.scoreboard) ? result.scoreboard : []
+              }
+              playerId={playerId}
+              rankDeltas={rankDeltas}
+            />
 
             <div
               className={

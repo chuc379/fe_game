@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { initSocket, closeSocket } from '@/lib/socket';
 import { getToken, setToken, clearToken, login } from '@/lib/auth';
+import { invalidateRoomCache } from '@/lib/roomCache';
 import PlayerList from '@/components/mc/PlayerList';
 import RoundTimer from '@/components/mc/RoundTimer';
 import ResultsDisplay from '@/components/mc/ResultsDisplay';
@@ -321,6 +322,7 @@ export default function MCPage() {
       setRoomCreated(true);
       setError('');
       setConfigNotice('');
+      invalidateRoomCache();
       applyConfig(data.config || room.config);
       if (data.room_state) applyRoomState(data.room_state);
     });
@@ -346,6 +348,7 @@ export default function MCPage() {
       }
       applyConfig(data.config || data.room?.config);
       setConfigNotice('Đã cập nhật cấu hình phòng.');
+      invalidateRoomCache();
       setError('');
     });
 
@@ -357,6 +360,7 @@ export default function MCPage() {
       setMyRooms((rooms) =>
         rooms.filter((room) => room.room_id !== data.room_id)
       );
+      invalidateRoomCache();
       setRoomCreated(false);
       setRoomId('');
       resetGameState();

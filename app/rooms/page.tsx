@@ -1,25 +1,16 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { initSocket } from '@/lib/socket';
 import { getToken, hasSavedPlayerToken } from '@/lib/auth';
+import {
+  invalidateRoomCache,
+  readRoomCache,
+  writeRoomCache,
+  type RoomSummary,
+} from '@/lib/roomCache';
 import styles from './page.module.css';
-
-interface RoomSummary {
-  room_id: string;
-  player_count?: number;
-  current_round?: number;
-  owner_mc?: string;
-  mc_name?: string;
-  status?: string;
-  config?: {
-    session_mode?: string;
-    max_player_links?: number;
-    lock_on_round_start?: boolean;
-    label?: string;
-  };
-}
 
 export default function RoomsPage() {
   const router = useRouter();
@@ -29,7 +20,11 @@ export default function RoomsPage() {
   const [error, setError] = useState('');
   const [isMc, setIsMc] = useState(false);
 
-  const requestRooms = useCallback((socket: any) => {
+  const requestedRef = useRef(false);
+
+  const requestRooms = useCallback((socket: any, force = false) => {
+    if (requestedRef.current && !force) return;
+    requestedRef.current = true;
     setRefreshing(true);
     socket.emit('list_rooms', {});
   }, []);
@@ -41,13 +36,19 @@ export default function RoomsPage() {
     // an expired MC session would break browsing for anonymous players.
     const socket = initSocket();
 
-    const onConnect = () => requestRooms(socket);
+    const onConnect = () => {
+      // Reconnect: only resync when we do not already have a fresh directory.
+      if (!readRoomCache()) requestRooms(socket);
+    };
 
     const onRoomsList = (data: any) => {
+      requestedRef.current = false;
       setLoading(false);
       setRefreshing(false);
       if (data?.success) {
-        setRooms(Array.isArray(data.rooms) ? data.rooms : []);
+        const next = Array.isArray(data.rooms) ? data.rooms : [];
+        setRooms(next);
+        writeRoomCache(next);
         setError('');
       } else {
         setError(data?.error || 'Không tải được danh sách phòng');
@@ -55,6 +56,7 @@ export default function RoomsPage() {
     };
 
     const onError = (data: any) => {
+      requestedRef.current = false;
       setLoading(false);
       setRefreshing(false);
       setError(data?.error || 'Không thể kết nối tới máy chủ');
@@ -64,7 +66,13 @@ export default function RoomsPage() {
     socket.on('rooms_list', onRoomsList);
     socket.on('error', onError);
 
-    if (socket.connected) {
+    // Paint the cached directory immediately instead of re-fetching it on
+    // every navigation. It is refreshed only when stale or on demand.
+    const cached = readRoomCache();
+    if (cached) {
+      setRooms(cached);
+      setLoading(false);
+    } else if (socket.connected) {
       requestRooms(socket);
     }
 
@@ -76,11 +84,13 @@ export default function RoomsPage() {
   }, [requestRooms]);
 
   const refresh = () => {
+    invalidateRoomCache();
+    requestedRef.current = false;
     const socket = initSocket();
     if (socket.connected) {
-      requestRooms(socket);
+      requestRooms(socket, true);
     } else {
-      socket.once('connect', () => requestRooms(socket));
+      socket.once('connect', () => requestRooms(socket, true));
     }
   };
 
